@@ -1,6 +1,6 @@
 # QQQ Mean Reversion Strategy
 
-A hobby project where I'm trying to learn Python and trading by building a bot that trades QQQ. **I have no idea what I'm doing** - this is just for fun and learning!
+A hobby project where I'm dabbling in quanttrading by building a bot that trades QQQ. **I have no idea what I'm doing** - this is just for fun and learning!
 
 ## 🤔 What is this?
 
