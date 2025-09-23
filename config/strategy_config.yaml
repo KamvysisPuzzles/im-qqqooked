@@ -1,0 +1,33 @@
+# QQQ Mean Reversion Strategy Configuration
+
+# Data Configuration
+data:
+  symbol: "QQQ"
+  timeframe: "1h"  # 1 hour bars for mid-frequency
+  start_date: "2020-01-01"
+  end_date: "2024-01-01"
+
+# Strategy Parameters
+strategy:
+  lookback_period: 20  # Days for moving average calculation
+  threshold_multiplier: 2.0  # Standard deviation multiplier for signals
+  min_holding_period: 4  # Minimum hours to hold position
+  max_holding_period: 48  # Maximum hours to hold position
+  
+# Risk Management
+risk:
+  stop_loss_pct: 0.02  # 2% stop loss
+  take_profit_pct: 0.03  # 3% take profit
+  position_size: 0.1  # 10% of portfolio per trade
+  max_positions: 1  # Maximum concurrent positions
+  
+# Backtesting
+backtest:
+  initial_capital: 100000  # Starting capital
+  commission: 0.001  # 0.1% commission per trade
+  slippage: 0.0005  # 0.05% slippage
+  
+# Performance Metrics
+metrics:
+  benchmark: "SPY"  # Benchmark for comparison
+  risk_free_rate: 0.02  # Annual risk-free rate

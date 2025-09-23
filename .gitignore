@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data files
+*.csv
+*.xlsx
+*.json
+data/
+*.pkl
+*.pickle
+
+# Results and logs
+results/
+logs/
+*.log
+
+# Configuration (keep template, ignore actual configs with sensitive data)
+config/secrets.yaml
+config/live_config.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Trading specific
+*.db
+*.sqlite
+positions.json
+account.json
