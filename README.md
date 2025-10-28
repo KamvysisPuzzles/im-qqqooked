@@ -2,6 +2,8 @@
 
 A trend-following trading strategy for TQQQ (Triple-leveraged QQQ ETF) using an ensemble of three indicators: Triple EMA, MACD-Volume, and Aroon.
 
+> **DISCLAIMER**: This is a personal experimentation project. I am not a professional trader, financial advisor, or licensed investment professional. This strategy is for educational and research purposes only. Past performance does not guarantee future results.
+
 ## Strategy Overview
 
 This is a **trend-following** strategy that combines three technical indicators with **OR logic** (any indicator can trigger a signal):
@@ -33,9 +35,9 @@ This is a **trend-following** strategy that combines three technical indicators 
 
 Leveraged ETFs like TQQQ exhibit **stronger momentum persistence** due to two key characteristics:
 
-1. **Daily Rebalancing**: The 3x leverage is reset daily, creating a compounding effect that amplifies trends in the underlying asset (QQQ). When QQQ moves in a sustained direction, TQQQ's daily rebalancing generates momentum beyond simple 3x leverage.
+1. **Compounding Leverage**: TQQQ aims to deliver 3x the daily return of QQQ. During sustained trends, holding TQQQ compounds these leveraged returns over multiple days, creating outsized gains that exceed simple 3x leverage over longer holding periods.
 
-2. **Amplified Volatility**: While leveraged ETFs are known for volatility decay, the amplified moves during strong trends create periods of outsized returns that trend-following strategies can capture.
+2. **Asymmetric Performance**: During strong trending markets, TQQQ's 3x daily leverage compounds favorably. While leveraged ETFs are known for volatility decay during choppy markets, the amplified moves during strong trends create opportunities for trend-following strategies to capture significant returns.
 
 3. **Ensemble Approach**: Using three complementary indicators (3EMA, MACD-V, Aroon) with OR logic allows the strategy to:
    - Capture trends earlier than single indicators
@@ -107,10 +109,11 @@ The academic literature suggests these indicators are effective for long-term tr
 ### Application to Leveraged ETFs
 
 Leveraged ETFs like TQQQ are particularly well-suited for trend-following because:
-- 3x leverage amplifies both profits AND trend persistence
-- Daily rebalancing creates autocorrelation (positive feedback loop)
-- High volatility provides opportunities for outsized returns during strong trends
-- The strategy captures these amplified moves while limiting exposure during reversals
+- 3x daily leverage amplifies returns during sustained trends
+- Compounding of leveraged returns over multiple days creates outsized gains during strong directional moves
+- High volatility provides opportunities for significant returns when trends persist
+- The strategy captures these amplified compounding effects during trends while limiting exposure during market reversals
+- Trend-following helps avoid volatility decay periods common in choppy/range-bound markets
 
 ## Optimization Methodology
 
@@ -291,13 +294,18 @@ Positions exit on:
 
 **THIS IS NOT FINANCIAL ADVICE**
 
-- This is a learning/research project
+**Important**: I am not a professional trader, financial advisor, or licensed investment professional. This is a personal experimentation project for educational and research purposes only.
+
+**Key Points**:
+- This is a learning/research project, not a professional trading system
 - Past performance does not guarantee future results
-- Trading leveraged ETFs (like TQQQ) is highly risky
-- Always do your own research
+- Trading leveraged ETFs (like TQQQ) is highly risky and can result in significant losses
+- Always do your own research and consult with qualified financial professionals
 - Use at your own risk
 
 **DO NOT RISK MORE THAN YOU CAN AFFORD TO LOSE**
+
+This repository is shared for educational purposes only. If you use this strategy, you do so at your own risk. I am not responsible for any trading losses or financial damage that may result from using this code or strategy.
 
 ## Contributing
 
