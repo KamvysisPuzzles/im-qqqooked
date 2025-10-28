@@ -1,5 +1,5 @@
 """
-Backtesting framework for QQQ Mean Reversion Strategy
+Backtesting framework for 3EMA + MACD-V + Aroon Trend Following Strategy
 """
 import pandas as pd
 import numpy as np
@@ -9,14 +9,14 @@ import seaborn as sns
 from datetime import datetime
 import logging
 
-from src.strategy import MeanReversionStrategy, Trade, Position
+from src.strategy import TrendFollowingStrategy, Trade, Position
 from src.data_fetcher import DataFetcher
 
 logger = logging.getLogger(__name__)
 
 
 class BacktestEngine:
-    """Backtesting engine for the mean reversion strategy"""
+    """Backtesting engine for the trend-following strategy"""
     
     def __init__(self, config: Dict):
         self.config = config
@@ -38,13 +38,13 @@ class BacktestEngine:
         self.trades = []
         self.equity_curve = []
         
-    def run_backtest(self, data: pd.DataFrame, strategy: MeanReversionStrategy) -> Dict:
+    def run_backtest(self, data: pd.DataFrame, strategy: TrendFollowingStrategy) -> Dict:
         """
         Run backtest on historical data
         
         Args:
             data: Historical price data with technical indicators
-            strategy: Mean reversion strategy instance
+            strategy: Trend following strategy instance
             
         Returns:
             Dictionary with backtest results
@@ -77,7 +77,8 @@ class BacktestEngine:
                     current_price, 
                     strategy.current_trade.entry_price,
                     strategy.current_trade.entry_time,
-                    timestamp
+                    timestamp,
+                    signal
                 )
                 
                 if should_exit:
@@ -89,12 +90,15 @@ class BacktestEngine:
                         self.trades.append(completed_trade)
                         self._update_capital(completed_trade)
             
-            # Check for entry conditions
-            if strategy.should_enter_position(signal, current_price, row['sma_20'], volatility):
-                # Apply slippage
-                entry_price = current_price * (1 + self.slippage) if signal == strategy.Signal.BUY else current_price * (1 - self.slippage)
+            # Check for entry conditions (trend following only goes LONG)
+            if strategy.should_enter_position(signal, current_price, timestamp, data_with_signals):
+                # Apply slippage for long entry
+                entry_price = current_price * (1 + self.slippage)
                 
-                new_trade = strategy.execute_trade(signal, entry_price, timestamp, self.current_capital, volatility)
+                # Get signal source
+                signal_source = row.get('signal_source', 'Unknown')
+                
+                new_trade = strategy.execute_trade(signal, entry_price, timestamp, self.current_capital, signal_source)
                 if new_trade:
                     self.trades.append(new_trade)
             
@@ -124,7 +128,7 @@ class BacktestEngine:
             
             self.current_capital += trade.pnl - commission_cost
     
-    def _calculate_portfolio_value(self, current_price: float, strategy: MeanReversionStrategy) -> float:
+    def _calculate_portfolio_value(self, current_price: float, strategy: TrendFollowingStrategy) -> float:
         """Calculate current portfolio value"""
         if strategy.current_position == Position.FLAT:
             return self.current_capital
@@ -192,14 +196,16 @@ class BacktestEngine:
     def plot_results(self, data: pd.DataFrame, save_path: str = None):
         """Plot backtest results"""
         
-        fig, axes = plt.subplots(3, 1, figsize=(15, 12))
+        fig, axes = plt.subplots(4, 1, figsize=(15, 14))
         
-        # Plot 1: Price and signals
+        # Plot 1: Price and EMAs
         ax1 = axes[0]
-        ax1.plot(data.index, data['close'], label='QQQ Price', alpha=0.7)
-        ax1.plot(data.index, data['sma_20'], label='SMA 20', alpha=0.7)
-        ax1.plot(data.index, data['bb_upper'], label='BB Upper', alpha=0.5, linestyle='--')
-        ax1.plot(data.index, data['bb_lower'], label='BB Lower', alpha=0.5, linestyle='--')
+        ax1.plot(data.index, data['close'], label='TQQQ Price', color='black', linewidth=1.5, alpha=0.8)
+        
+        # Plot EMAs if they exist
+        for ema_col in ['ema12', 'ema89', 'ema125']:
+            if ema_col in data.columns:
+                ax1.plot(data.index, data[ema_col], label=ema_col.upper(), alpha=0.6, linestyle='--')
         
         # Mark trade entries and exits
         for trade in self.trades:
@@ -208,17 +214,17 @@ class BacktestEngine:
                 ax1.scatter(trade.entry_time, trade.entry_price, color=color, s=50, alpha=0.7)
                 ax1.scatter(trade.exit_time, trade.exit_price, color=color, s=50, alpha=0.7, marker='x')
         
-        ax1.set_title('QQQ Price with Trading Signals')
-        ax1.set_ylabel('Price')
+        ax1.set_title('TQQQ Price with Trading Signals', fontweight='bold')
+        ax1.set_ylabel('Price ($)', fontweight='bold')
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         
         # Plot 2: Portfolio value
         ax2 = axes[1]
-        ax2.plot(self.equity_curve.index, self.equity_curve['portfolio_value'], label='Portfolio Value', color='blue')
-        ax2.axhline(y=self.initial_capital, color='red', linestyle='--', alpha=0.7, label='Initial Capital')
-        ax2.set_title('Portfolio Value Over Time')
-        ax2.set_ylabel('Portfolio Value ($)')
+        ax2.plot(self.equity_curve.index, self.equity_curve['portfolio_value'], label='Portfolio Value', color='darkgreen', linewidth=2)
+        ax2.axhline(y=self.initial_capital, color='gray', linestyle='--', alpha=0.5, label='Initial Capital')
+        ax2.set_title('Portfolio Value Over Time', fontweight='bold')
+        ax2.set_ylabel('Value ($)', fontweight='bold')
         ax2.legend()
         ax2.grid(True, alpha=0.3)
         
@@ -227,11 +233,24 @@ class BacktestEngine:
         peak = self.equity_curve['portfolio_value'].expanding().max()
         drawdown = (self.equity_curve['portfolio_value'] - peak) / peak
         ax3.fill_between(self.equity_curve.index, drawdown, 0, alpha=0.3, color='red')
-        ax3.plot(self.equity_curve.index, drawdown, color='red', alpha=0.7)
-        ax3.set_title('Drawdown')
-        ax3.set_ylabel('Drawdown (%)')
-        ax3.set_xlabel('Date')
+        ax3.plot(self.equity_curve.index, drawdown, color='red', linewidth=1.5, alpha=0.7)
+        ax3.set_title('Drawdown Analysis', fontweight='bold')
+        ax3.set_ylabel('Drawdown (%)', fontweight='bold')
         ax3.grid(True, alpha=0.3)
+        
+        # Plot 4: Trade P&L distribution
+        ax4 = axes[3]
+        completed_trades = [t for t in self.trades if t.pnl is not None]
+        if completed_trades:
+            pnls = [t.pnl for t in completed_trades]
+            ax4.hist(pnls, bins=30, color='steelblue', alpha=0.7, edgecolor='black')
+            ax4.axvline(0, color='red', linestyle='--', linewidth=2)
+            ax4.set_xlabel('P&L ($)', fontweight='bold')
+            ax4.set_ylabel('Frequency', fontweight='bold')
+            ax4.set_title('Trade P&L Distribution', fontweight='bold')
+            ax4.grid(True, alpha=0.3, axis='y')
+        
+        ax3.set_xlabel('Date', fontweight='bold')
         
         plt.tight_layout()
         
@@ -291,7 +310,7 @@ def run_backtest(config: Dict, start_date: str = None, end_date: str = None) -> 
     )
     
     # Initialize strategy and backtest engine
-    strategy = MeanReversionStrategy(config)
+    strategy = TrendFollowingStrategy(config)
     backtest_engine = BacktestEngine(config)
     
     # Run backtest

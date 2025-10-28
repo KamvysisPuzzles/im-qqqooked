@@ -64,3 +64,4 @@ Thumbs.db
 *.sqlite
 positions.json
 account.json
+.env

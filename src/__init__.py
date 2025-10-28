@@ -1,1 +1,1 @@
-# QQQ Mean Reversion Strategy Package
+# 3EMA + MACD-V + Aroon Trend Following Strategy Package

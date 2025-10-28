@@ -1,33 +1,51 @@
-# QQQ Mean Reversion Strategy Configuration
+# 3EMA + MACD-V + Aroon Trend Following Strategy Configuration
 
 # Data Configuration
 data:
-  symbol: "QQQ"
-  timeframe: "1h"  # 1 hour bars for mid-frequency
-  start_date: "2020-01-01"
-  end_date: "2024-01-01"
+  symbol: "TQQQ"  # Triple-leveraged QQQ ETF
+  timeframe: "1d"  # Daily bars
+  start_date: "2018-01-01"
+  end_date: "2025-01-01"
 
 # Strategy Parameters
 strategy:
-  lookback_period: 20  # Days for moving average calculation
-  threshold_multiplier: 2.0  # Standard deviation multiplier for signals
-  min_holding_period: 4  # Minimum hours to hold position
-  max_holding_period: 48  # Maximum hours to hold position
+  # Triple EMA parameters
+  ema1: 12      # Fast EMA
+  ema2: 89      # Medium EMA
+  ema3: 125     # Slow EMA
   
+  # MACD-V parameters
+  macd_fast: 25
+  macd_slow: 30
+  macd_signal: 85
+  volume_threshold: 0.0  # Volume confirmation threshold (0 = disabled)
+  
+  # Aroon parameters
+  aroon_length: 66
+
 # Risk Management
 risk:
-  stop_loss_pct: 0.02  # 2% stop loss
-  take_profit_pct: 0.03  # 3% take profit
-  position_size: 0.1  # 10% of portfolio per trade
-  max_positions: 1  # Maximum concurrent positions
-  
+  stop_loss_pct: null    # Disabled - no stop loss
+  take_profit_pct: null  # Disabled - no take profit
+  position_size: 0.1     # 10% of portfolio per trade
+  max_positions: 1       # Maximum concurrent positions
+  max_holding_days: null # Disabled - no max holding period
+
 # Backtesting
 backtest:
   initial_capital: 100000  # Starting capital
-  commission: 0.001  # 0.1% commission per trade
-  slippage: 0.0005  # 0.05% slippage
-  
+  commission: 0.0005       # 0.05% commission per trade
+  slippage: 0.0005         # 0.05% slippage
+
 # Performance Metrics
 metrics:
-  benchmark: "SPY"  # Benchmark for comparison
-  risk_free_rate: 0.02  # Annual risk-free rate
+  benchmark: "SPY"         # Benchmark for comparison
+  risk_free_rate: 0.02    # Annual risk-free rate
+
+# Live Trading (Manual Execution)
+live:
+  enabled: false          # Set to true for live monitoring
+  signal_check_interval: 3600  # Check signals every hour (seconds)
+  telegram_enabled: false
+  telegram_bot_token: ""  # Your Telegram bot token
+  telegram_chat_id: ""    # Your Telegram chat ID

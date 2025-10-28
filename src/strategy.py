@@ -1,8 +1,9 @@
 """
-QQQ Mean Reversion Strategy Implementation
+3EMA + MACD-V + Aroon Trend Following Strategy Implementation
 """
 import pandas as pd
 import numpy as np
+import talib
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -36,27 +37,37 @@ class Trade:
     quantity: float
     pnl: Optional[float] = None
     exit_reason: Optional[str] = None
+    signal_source: Optional[str] = None  # Which indicator triggered the signal
 
 
-class MeanReversionStrategy:
-    """QQQ Mean Reversion Strategy"""
+class TrendFollowingStrategy:
+    """3EMA + MACD-V + Aroon Trend Following Strategy for TQQQ"""
     
     def __init__(self, config: Dict):
         self.config = config
         self.strategy_params = config.get('strategy', {})
         self.risk_params = config.get('risk', {})
         
-        # Strategy parameters
-        self.lookback_period = self.strategy_params.get('lookback_period', 20)
-        self.threshold_multiplier = self.strategy_params.get('threshold_multiplier', 2.0)
-        self.min_holding_period = self.strategy_params.get('min_holding_period', 4)
-        self.max_holding_period = self.strategy_params.get('max_holding_period', 48)
+        # Triple EMA parameters
+        self.ema1 = self.strategy_params.get('ema1', 12)
+        self.ema2 = self.strategy_params.get('ema2', 89)
+        self.ema3 = self.strategy_params.get('ema3', 125)
+        
+        # MACD-V parameters
+        self.macd_fast = self.strategy_params.get('macd_fast', 25)
+        self.macd_slow = self.strategy_params.get('macd_slow', 30)
+        self.macd_signal = self.strategy_params.get('macd_signal', 85)
+        self.volume_threshold = self.strategy_params.get('volume_threshold', 0.0)
+        
+        # Aroon parameters
+        self.aroon_length = self.strategy_params.get('aroon_length', 66)
         
         # Risk parameters
-        self.stop_loss_pct = self.risk_params.get('stop_loss_pct', 0.02)
-        self.take_profit_pct = self.risk_params.get('take_profit_pct', 0.03)
+        self.stop_loss_pct = self.risk_params.get('stop_loss_pct', None)  # Disabled
+        self.take_profit_pct = self.risk_params.get('take_profit_pct', None)  # Disabled
         self.position_size = self.risk_params.get('position_size', 0.1)
         self.max_positions = self.risk_params.get('max_positions', 1)
+        self.max_holding_days = self.risk_params.get('max_holding_days', None)  # Disabled
         
         # State variables
         self.current_position = Position.FLAT
@@ -66,7 +77,7 @@ class MeanReversionStrategy:
         
     def generate_signals(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        Generate trading signals based on mean reversion logic
+        Generate trading signals using 3EMA + MACD-V + Aroon ensemble (OR logic)
         
         Args:
             data: DataFrame with OHLCV data and technical indicators
@@ -76,91 +87,169 @@ class MeanReversionStrategy:
         """
         df = data.copy()
         
-        # Calculate mean reversion signals
+        # Initialize signals
+        df['signal_3ema'] = 0
+        df['signal_macdv'] = 0
+        df['signal_aroon'] = 0
         df['signal'] = 0
-        df['position'] = Position.FLAT.value
+        df['signal_source'] = ''
         
-        for i in range(self.lookback_period, len(df)):
-            current_price = df.iloc[i]['close']
-            sma = df.iloc[i]['sma_20']
-            volatility = df.iloc[i]['volatility']
+        # Calculate indicators if not already present
+        self._calculate_indicators(df)
+        
+        # Generate signals for each indicator
+        for i in range(1, len(df)):
+            # 3EMA signals
+            signal_3ema = self._get_3ema_signal(df, i)
             
-            # Calculate thresholds
-            upper_threshold = sma + (self.threshold_multiplier * volatility)
-            lower_threshold = sma - (self.threshold_multiplier * volatility)
+            # MACD-V signals
+            signal_macdv = self._get_macdv_signal(df, i)
             
-            # Generate signals
-            if current_price < lower_threshold:
-                df.iloc[i, df.columns.get_loc('signal')] = Signal.BUY.value
-            elif current_price > upper_threshold:
-                df.iloc[i, df.columns.get_loc('signal')] = Signal.SELL.value
-            else:
-                df.iloc[i, df.columns.get_loc('signal')] = Signal.HOLD.value
+            # Aroon signals
+            signal_aroon = self._get_aroon_signal(df, i)
+            
+            # Combine with OR logic - any indicator can trigger
+            if signal_3ema != 0:
+                df.iloc[i, df.columns.get_loc('signal_3ema')] = signal_3ema
+                df.iloc[i, df.columns.get_loc('signal')] = signal_3ema
+                df.iloc[i, df.columns.get_loc('signal_source')] = '3EMA'
+            elif signal_macdv != 0:
+                df.iloc[i, df.columns.get_loc('signal_macdv')] = signal_macdv
+                df.iloc[i, df.columns.get_loc('signal')] = signal_macdv
+                df.iloc[i, df.columns.get_loc('signal_source')] = 'MACD-V'
+            elif signal_aroon != 0:
+                df.iloc[i, df.columns.get_loc('signal_aroon')] = signal_aroon
+                df.iloc[i, df.columns.get_loc('signal')] = signal_aroon
+                df.iloc[i, df.columns.get_loc('signal_source')] = 'Aroon'
         
         return df
     
-    def should_enter_position(self, signal: Signal, current_price: float, 
-                            sma: float, volatility: float) -> bool:
-        """Determine if we should enter a position"""
+    def _calculate_indicators(self, df: pd.DataFrame):
+        """Calculate all technical indicators"""
+        # EMAs
+        df[f'ema{self.ema1}'] = df['close'].ewm(span=self.ema1, adjust=False).mean()
+        df[f'ema{self.ema2}'] = df['close'].ewm(span=self.ema2, adjust=False).mean()
+        df[f'ema{self.ema3}'] = df['close'].ewm(span=self.ema3, adjust=False).mean()
+        
+        # MACD
+        close_array = df['close'].values
+        macd, signal_line, _ = talib.MACD(close_array, 
+                                          fastperiod=self.macd_fast,
+                                          slowperiod=self.macd_slow,
+                                          signalperiod=self.macd_signal)
+        df['macd'] = pd.Series(macd, index=df.index)
+        df['macd_signal'] = pd.Series(signal_line, index=df.index)
+        
+        # Volume ratio
+        df['volume_sma_20'] = df['volume'].rolling(window=20).mean()
+        df['volume_ratio'] = df['volume'] / df['volume_sma_20']
+        
+        # Aroon
+        high_array = df['high'].values
+        low_array = df['low'].values
+        aroon_up, aroon_down = talib.AROON(high_array, low_array, timeperiod=self.aroon_length)
+        df['aroon_up'] = pd.Series(aroon_up, index=df.index)
+        df['aroon_down'] = pd.Series(aroon_down, index=df.index)
+    
+    def _get_3ema_signal(self, df: pd.DataFrame, i: int) -> int:
+        """Check 3EMA crossover signals"""
+        if i == 0:
+            return 0
+        
+        ema1 = df[f'ema{self.ema1}'].iloc[i]
+        ema2 = df[f'ema{self.ema2}'].iloc[i]
+        ema3 = df[f'ema{self.ema3}'].iloc[i]
+        
+        ema1_prev = df[f'ema{self.ema1}'].iloc[i-1]
+        ema2_prev = df[f'ema{self.ema2}'].iloc[i-1]
+        ema3_prev = df[f'ema{self.ema3}'].iloc[i-1]
+        
+        # Buy signals: any EMA crosses above another
+        if (ema1 > ema2 and ema1_prev <= ema2_prev) or \
+           (ema1 > ema3 and ema1_prev <= ema3_prev) or \
+           (ema2 > ema3 and ema2_prev <= ema3_prev):
+            return Signal.BUY.value
+        
+        # Sell signals: any EMA crosses below another
+        elif (ema1 < ema2 and ema1_prev >= ema2_prev) or \
+             (ema1 < ema3 and ema1_prev >= ema3_prev) or \
+             (ema2 < ema3 and ema2_prev >= ema3_prev):
+            return Signal.SELL.value
+        
+        return 0
+    
+    def _get_macdv_signal(self, df: pd.DataFrame, i: int) -> int:
+        """Check MACD-V signals"""
+        if i == 0 or pd.isna(df['macd'].iloc[i]) or pd.isna(df['macd_signal'].iloc[i]):
+            return 0
+        
+        macd = df['macd'].iloc[i]
+        macd_signal = df['macd_signal'].iloc[i]
+        macd_prev = df['macd'].iloc[i-1]
+        signal_prev = df['macd_signal'].iloc[i-1]
+        
+        volume_ratio = df['volume_ratio'].iloc[i]
+        volume_confirm = volume_ratio > self.volume_threshold
+        
+        # Bullish cross
+        if macd > macd_signal and macd_prev <= signal_prev and volume_confirm:
+            return Signal.BUY.value
+        
+        # Bearish cross
+        elif macd < macd_signal and macd_prev >= signal_prev and volume_confirm:
+            return Signal.SELL.value
+        
+        return 0
+    
+    def _get_aroon_signal(self, df: pd.DataFrame, i: int) -> int:
+        """Check Aroon crossover signals"""
+        if i == 0 or pd.isna(df['aroon_up'].iloc[i]) or pd.isna(df['aroon_down'].iloc[i]):
+            return 0
+        
+        aroon_up = df['aroon_up'].iloc[i]
+        aroon_down = df['aroon_down'].iloc[i]
+        aroon_up_prev = df['aroon_up'].iloc[i-1]
+        aroon_down_prev = df['aroon_down'].iloc[i-1]
+        
+        # Buy signal: Aroon Up crosses above Aroon Down
+        if aroon_up > aroon_down and aroon_up_prev <= aroon_down_prev:
+            return Signal.BUY.value
+        
+        # Sell signal: Aroon Up crosses below Aroon Down
+        elif aroon_up < aroon_down and aroon_up_prev >= aroon_down_prev:
+            return Signal.SELL.value
+        
+        return 0
+    
+    def should_enter_position(self, signal: Signal, current_price: float,
+                            timestamp: pd.Timestamp, df: pd.DataFrame) -> bool:
+        """Determine if we should enter a position (trend-following)"""
         
         # Don't enter if already in position
         if self.current_position != Position.FLAT:
             return False
         
-        # Check signal strength
+        # For trend following, we only take LONG positions based on signals
+        # Check if we have a valid BUY signal
         if signal == Signal.BUY:
-            deviation = (current_price - sma) / sma
-            return deviation < -self.threshold_multiplier * (volatility / sma)
-        elif signal == Signal.SELL:
-            deviation = (current_price - sma) / sma
-            return deviation > self.threshold_multiplier * (volatility / sma)
+            return True
         
         return False
     
     def should_exit_position(self, current_price: float, entry_price: float,
-                           entry_time: pd.Timestamp, current_time: pd.Timestamp) -> Tuple[bool, str]:
-        """Determine if we should exit current position"""
+                           entry_time: pd.Timestamp, current_time: pd.Timestamp,
+                           signal: Signal) -> Tuple[bool, str]:
+        """Determine if we should exit current position (pure trend-following, exits only on opposite signal)"""
         
         if self.current_position == Position.FLAT:
             return False, ""
         
-        # Calculate holding period in hours
-        holding_hours = (current_time - entry_time).total_seconds() / 3600
-        
-        # Check minimum holding period
-        if holding_hours < self.min_holding_period:
-            return False, ""
-        
-        # Check maximum holding period
-        if holding_hours >= self.max_holding_period:
-            return True, "max_holding_period"
-        
-        # Calculate P&L
-        if self.current_position == Position.LONG:
-            pnl_pct = (current_price - entry_price) / entry_price
-        else:  # SHORT
-            pnl_pct = (entry_price - current_price) / entry_price
-        
-        # Check stop loss
-        if pnl_pct <= -self.stop_loss_pct:
-            return True, "stop_loss"
-        
-        # Check take profit
-        if pnl_pct >= self.take_profit_pct:
-            return True, "take_profit"
-        
-        # Check mean reversion exit
-        if self._check_mean_reversion_exit(current_price, entry_price):
-            return True, "mean_reversion"
+        # Exit on opposite signal (trend reversal)
+        # This is pure trend-following - no stop loss, take profit, or time-based exits
+        if self.current_position == Position.LONG and signal == Signal.SELL:
+            return True, "opposite_signal"
         
         return False, ""
-    
-    def _check_mean_reversion_exit(self, current_price: float, entry_price: float) -> bool:
-        """Check if price has reverted to mean"""
-        if self.current_position == Position.LONG:
-            return current_price >= entry_price * 1.01  # 1% profit
-        else:  # SHORT
-            return current_price <= entry_price * 0.99  # 1% profit
     
     def calculate_position_size(self, account_value: float, current_price: float,
                              volatility: float) -> float:
@@ -178,12 +267,12 @@ class MeanReversionStrategy:
         return quantity
     
     def execute_trade(self, signal: Signal, price: float, timestamp: pd.Timestamp,
-                     account_value: float, volatility: float) -> Optional[Trade]:
+                     account_value: float, signal_source: str = None) -> Optional[Trade]:
         """Execute a trade based on signal"""
         
         if signal == Signal.BUY and self.current_position == Position.FLAT:
-            # Enter long position
-            quantity = self.calculate_position_size(account_value, price, volatility)
+            # Enter long position (trend-following only goes LONG)
+            quantity = self.calculate_position_size(account_value, price, 0.02)  # Use default volatility
             self.current_position = Position.LONG
             self.current_trade = Trade(
                 entry_time=timestamp,
@@ -191,24 +280,10 @@ class MeanReversionStrategy:
                 entry_price=price,
                 exit_price=None,
                 position_type=Position.LONG,
-                quantity=quantity
+                quantity=quantity,
+                signal_source=signal_source
             )
-            logger.info(f"Entered LONG position at {price:.2f}, quantity: {quantity:.2f}")
-            return self.current_trade
-            
-        elif signal == Signal.SELL and self.current_position == Position.FLAT:
-            # Enter short position (if enabled)
-            quantity = self.calculate_position_size(account_value, price, volatility)
-            self.current_position = Position.SHORT
-            self.current_trade = Trade(
-                entry_time=timestamp,
-                exit_time=None,
-                entry_price=price,
-                exit_price=None,
-                position_type=Position.SHORT,
-                quantity=quantity
-            )
-            logger.info(f"Entered SHORT position at {price:.2f}, quantity: {quantity:.2f}")
+            logger.info(f"Entered LONG position at {price:.2f}, quantity: {quantity:.2f}, source: {signal_source}")
             return self.current_trade
         
         return None

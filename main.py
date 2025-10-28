@@ -1,5 +1,5 @@
 """
-Main entry point for QQQ Mean Reversion Strategy
+Main entry point for 3EMA + MACD-V + Aroon Trend Following Strategy (TQQQ)
 """
 import argparse
 import logging
@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import os
 
 from src.data_fetcher import DataFetcher, load_config
-from src.strategy import MeanReversionStrategy
+from src.strategy import TrendFollowingStrategy
 from src.backtest import BacktestEngine, run_backtest
 
 # Set up logging
@@ -34,7 +34,7 @@ def create_directories():
 def run_strategy_backtest(config_path: str = 'config/strategy_config.yaml'):
     """Run the strategy backtest"""
     
-    logger.info("Starting QQQ Mean Reversion Strategy Backtest")
+    logger.info("Starting 3EMA + MACD-V + Aroon Trend Following Strategy Backtest")
     
     # Load configuration
     try:
@@ -86,9 +86,12 @@ def run_strategy_backtest(config_path: str = 'config/strategy_config.yaml'):
 
 
 def run_live_strategy(config_path: str = 'config/strategy_config.yaml'):
-    """Run the strategy in live mode (simulation)"""
+    """Run the strategy in live mode (manual execution with Telegram alerts)"""
     
-    logger.info("Starting QQQ Mean Reversion Strategy (Live Mode)")
+    logger.info("Starting 3EMA + MACD-V + Aroon Trend Following Strategy (Live Mode)")
+    
+    # Import here to avoid circular dependency
+    from src.live_monitor import LiveMonitor
     
     # Load configuration
     try:
@@ -98,23 +101,9 @@ def run_live_strategy(config_path: str = 'config/strategy_config.yaml'):
         logger.error(f"Configuration file not found: {config_path}")
         return
     
-    # Initialize components
-    fetcher = DataFetcher(config['data']['symbol'])
-    strategy = MeanReversionStrategy(config)
-    
-    logger.info("Strategy initialized. Monitoring for signals...")
-    
-    # In a real implementation, this would run continuously
-    # For now, we'll just fetch the latest data and check for signals
-    try:
-        latest_price = fetcher.get_latest_price()
-        logger.info(f"Latest QQQ price: ${latest_price:.2f}")
-        
-        # You would implement continuous monitoring here
-        # This is a placeholder for the live trading logic
-        
-    except Exception as e:
-        logger.error(f"Error in live strategy: {e}")
+    # Initialize live monitor
+    monitor = LiveMonitor(config)
+    monitor.run()
 
 
 def optimize_parameters(config_path: str = 'config/strategy_config.yaml'):
@@ -185,7 +174,7 @@ def optimize_parameters(config_path: str = 'config/strategy_config.yaml'):
 def main():
     """Main entry point"""
     
-    parser = argparse.ArgumentParser(description='QQQ Mean Reversion Strategy')
+    parser = argparse.ArgumentParser(description='3EMA + MACD-V + Aroon Trend Following Strategy (TQQQ)')
     parser.add_argument('--mode', choices=['backtest', 'live', 'optimize'], 
                        default='backtest', help='Strategy mode')
     parser.add_argument('--config', default='config/strategy_config.yaml',
