@@ -169,6 +169,22 @@ Based on backtesting from 2018-2025:
 
 *Note: Sortino ratio is higher than Sharpe because it only penalizes downside volatility, reflecting the strategy's asymmetric risk profile.*
 
+### Validation Period Performance (Out-of-Sample: 2022-2025)
+
+The strategy demonstrated robust performance during a highly volatile period that included:
+- The 2022 market downturn
+- Significant volatility in 2023-2024
+- Market corrections in early 2025
+
+![Validation Period Backtest](results/3EMA_MACDV_Aroon_Validation_Comprehensive.png)
+
+**Key Highlights**:
+- Generated 329.4% returns during the 3-year validation period
+- Successfully navigated multiple market regime changes
+- Maintained Sharpe ratio of 1.87 despite high volatility environment
+- Maximum drawdown of 34.3% with successful recovery
+- The ensemble approach (3EMA + MACD-V + Aroon) effectively captured major trends while avoiding the Tarrif Crush
+
 ## Quick Start
 
 ### Installation
